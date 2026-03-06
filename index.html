@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Trader Intel — Top Crypto & Kalshi Traders</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        bg: '#0a0a0f',
+        surface: '#12121a',
+        border: '#1e1e2e',
+        accent: '#7c3aed',
+        green: { 400: '#4ade80', 500: '#22c55e' },
+        red: { 400: '#f87171', 500: '#ef4444' },
+      },
+      fontFamily: { mono: ['JetBrains Mono', 'Fira Code', 'monospace'] }
+    }
+  }
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  body { background: #0a0a0f; color: #e2e8f0; font-family: 'Inter', sans-serif; margin: 0; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #12121a; }
+  ::-webkit-scrollbar-thumb { background: #2d2d44; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3d3d5c; }
+  .glow { box-shadow: 0 0 20px rgba(124,58,237,0.15); }
+  .row-hover:hover { background: rgba(124,58,237,0.05); }
+  .pos-row:hover { background: rgba(255,255,255,0.03); }
+  .fade-in { animation: fadeIn 0.2s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
+  .pulse-dot { animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+  .tab-active { border-bottom: 2px solid #7c3aed; color: #a78bfa; }
+  .copy-btn { transition: all 0.15s; }
+  .copy-btn:hover { background: rgba(124,58,237,0.2); }
+  .badge { font-size: 10px; padding: 1px 6px; border-radius: 999px; font-weight: 600; letter-spacing: 0.05em; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+</style>
+</head>
+<body class="dark">
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef } = React;
+
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const HL_API = 'https://api-ui.hyperliquid.xyz/info';
+const TIMEFRAMES = ['24h','7d','30d','allTime'];
+const TF_LABELS = { '24h':'24H', '7d':'7D', '30d':'30D', 'allTime':'All Time' };
+
+// ─── KALSHI MOCK DATA (CORS blocks live API from browser) ─────────────────────
+const KALSHI_TRADERS = [
+  {
+    id: 'k1', name: 'PredictKing', rank: 1,
+    allTimePnl: 412500, winRate: 71.2, totalTrades: 847, volume: 2100000,
+    positions: [
+      { market: 'Will Fed cut rates in March 2026?', ticker: 'FED-25MAR-CUT', side: 'YES', contracts: 4200, avgPrice: 0.72, currentPrice: 0.81, pnl: 3780 },
+      { market: 'Will BTC exceed $120k by June 2026?', ticker: 'BTC-120K-JUN26', side: 'YES', contracts: 2000, avgPrice: 0.38, currentPrice: 0.51, pnl: 2600 },
+      { market: 'Will Trump sign crypto bill in 2026?', ticker: 'CRYPTO-BILL-26', side: 'YES', contracts: 1500, avgPrice: 0.55, currentPrice: 0.63, pnl: 1200 },
+    ]
+  },
+  {
+    id: 'k2', name: 'MarketWizard', rank: 2,
+    allTimePnl: 287300, winRate: 68.5, totalTrades: 623, volume: 1450000,
+    positions: [
+      { market: 'Will unemployment stay below 4.5% in Q2?', ticker: 'UNEMP-Q2-2026', side: 'NO', contracts: 3000, avgPrice: 0.31, currentPrice: 0.22, pnl: 2700 },
+      { market: 'Will S&P 500 hit 6500 by July 2026?', ticker: 'SPX-6500-JUL26', side: 'YES', contracts: 1800, avgPrice: 0.44, currentPrice: 0.58, pnl: 2520 },
+    ]
+  },
+  {
+    id: 'k3', name: 'EdgeTrader99', rank: 3,
+    allTimePnl: 198700, winRate: 65.1, totalTrades: 412, volume: 980000,
+    positions: [
+      { market: 'Will GPT-5 launch before April 2026?', ticker: 'GPT5-APR26', side: 'NO', contracts: 2500, avgPrice: 0.28, currentPrice: 0.19, pnl: 2250 },
+      { market: 'Will Apple release AR glasses in 2026?', ticker: 'AAPL-AR-26', side: 'NO', contracts: 1200, avgPrice: 0.42, currentPrice: 0.33, pnl: 1080 },
+    ]
+  },
+  {
+    id: 'k4', name: 'ProbabilityPro', rank: 4,
+    allTimePnl: 156200, winRate: 63.8, totalTrades: 334, volume: 720000,
+    positions: [
+      { market: 'Will oil stay above $70/barrel in Q2?', ticker: 'OIL-70-Q2', side: 'YES', contracts: 2200, avgPrice: 0.61, currentPrice: 0.69, pnl: 1760 },
+      { market: 'Will Elon Musk leave DOGE by June 2026?', ticker: 'DOGE-EXIT-JUN26', side: 'YES', contracts: 900, avgPrice: 0.47, currentPrice: 0.55, pnl: 720 },
+    ]
+  },
+  {
+    id: 'k5', name: 'AlgoOdds', rank: 5,
+    allTimePnl: 134800, winRate: 62.4, totalTrades: 289, volume: 610000,
+    positions: [
+      { market: 'Will inflation drop below 3% by May 2026?', ticker: 'CPI-3PCT-MAY26', side: 'YES', contracts: 1600, avgPrice: 0.53, currentPrice: 0.61, pnl: 1280 },
+    ]
+  },
+  {
+    id: 'k6', name: 'SentimentSurfer', rank: 6,
+    allTimePnl: 112300, winRate: 60.9, totalTrades: 251, volume: 498000,
+    positions: [
+      { market: 'Will Democrats win 2026 Senate majority?', ticker: 'DEM-SEN-26', side: 'NO', contracts: 3500, avgPrice: 0.35, currentPrice: 0.27, pnl: 2800 },
+    ]
+  },
+  {
+    id: 'k7', name: 'DataDrivenBets', rank: 7,
+    allTimePnl: 98400, winRate: 59.7, totalTrades: 198, volume: 412000,
+    positions: [
+      { market: 'Will Tesla stock exceed $500 in 2026?', ticker: 'TSLA-500-26', side: 'YES', contracts: 1100, avgPrice: 0.41, currentPrice: 0.49, pnl: 880 },
+      { market: 'Will Meta hit $1T market cap again?', ticker: 'META-1T-26', side: 'YES', contracts: 800, avgPrice: 0.66, currentPrice: 0.72, pnl: 480 },
+    ]
+  },
+  {
+    id: 'k8', name: 'QuietEdge', rank: 8,
+    allTimePnl: 87200, winRate: 58.3, totalTrades: 176, volume: 345000,
+    positions: [
+      { market: 'Will NATO expand to Ukraine in 2026?', ticker: 'NATO-UKR-26', side: 'NO', contracts: 2000, avgPrice: 0.19, currentPrice: 0.13, pnl: 1200 },
+    ]
+  },
+  {
+    id: 'k9', name: 'VolatilityHunter', rank: 9,
+    allTimePnl: 72100, winRate: 57.1, totalTrades: 154, volume: 287000,
+    positions: [
+      { market: 'Will gold hit $3,500/oz in 2026?', ticker: 'GOLD-3500-26', side: 'YES', contracts: 950, avgPrice: 0.44, currentPrice: 0.52, pnl: 760 },
+    ]
+  },
+  {
+    id: 'k10', name: 'NewsArbitrager', rank: 10,
+    allTimePnl: 61800, winRate: 55.9, totalTrades: 138, volume: 241000,
+    positions: [
+      { market: 'Will SpaceX IPO in 2026?', ticker: 'SPACEX-IPO-26', side: 'NO', contracts: 1400, avgPrice: 0.38, currentPrice: 0.29, pnl: 1260 },
+    ]
+  },
+];
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function fmtUsd(n, decimals=2) {
+  const abs = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  if (abs >= 1_000_000) return `${sign}$${(abs/1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}$${(abs/1_000).toFixed(1)}K`;
+  return `${sign}$${abs.toFixed(decimals)}`;
+}
+function fmtPct(n) {
+  const sign = n >= 0 ? '+' : '';
+  return `${sign}${n.toFixed(1)}%`;
+}
+function shortAddr(addr) {
+  if (!addr) return '—';
+  return addr.slice(0,6) + '...' + addr.slice(-4);
+}
+function pnlColor(n) { return n >= 0 ? 'text-green-400' : 'text-red-400'; }
+function pnlBg(n) { return n >= 0 ? 'bg-green-400/10 text-green-400' : 'bg-red-400/10 text-red-400'; }
+
+// ─── HYPERLIQUID API ──────────────────────────────────────────────────────────
+async function fetchLeaderboard(timeframe) {
+  const tfMap = { '24h':'day', '7d':'week', '30d':'month', 'allTime':'allTime' };
+  const res = await fetch(HL_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'leaderboard' }),
+  });
+  if (!res.ok) throw new Error('Hyperliquid fetch failed');
+  const data = await res.json();
+  const rows = data.leaderboardRows || [];
+  const tf = tfMap[timeframe] || 'week';
+  return rows.slice(0, 50).map((r, i) => {
+    const windowData = r.windowPerformances?.find(w => w[0] === tf)?.[1] || {};
+    return {
+      rank: i + 1,
+      address: r.ethAddress || '',
+      displayName: r.displayName || shortAddr(r.ethAddress),
+      accountValue: parseFloat(r.accountValue || 0),
+      pnl: parseFloat(windowData.pnl || 0),
+      roi: parseFloat(windowData.roi || 0) * 100,
+      volume: parseFloat(windowData.vlm || 0),
+      allTimePnl: parseFloat(r.windowPerformances?.find(w=>w[0]==='allTime')?.[1]?.pnl || 0),
+      openPositions: [],
+      starred: false,
+    };
+  });
+}
+
+async function fetchPositions(address) {
+  const res = await fetch(HL_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'clearinghouseState', user: address }),
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data.assetPositions || [])
+    .filter(p => p.position?.szi && parseFloat(p.position.szi) !== 0)
+    .map(p => {
+      const pos = p.position;
+      const size = parseFloat(pos.szi || 0);
+      const entry = parseFloat(pos.entryPx || 0);
+      const upnl = parseFloat(pos.unrealizedPnl || 0);
+      const lev = parseFloat(pos.leverage?.value || 1);
+      return {
+        coin: pos.coin,
+        side: size > 0 ? 'LONG' : 'SHORT',
+        size: Math.abs(size),
+        entryPrice: entry,
+        markPrice: entry + (upnl / Math.abs(size) || 0),
+        unrealizedPnl: upnl,
+        leverage: lev,
+        roe: parseFloat(pos.returnOnEquity || 0) * 100,
+      };
+    });
+}
+
+// ─── ICON COMPONENTS ─────────────────────────────────────────────────────────
+const icons = {
+  Star: ({filled, size=16, className=''}) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled?"#f59e0b":"none"} stroke={filled?"#f59e0b":"currentColor"} strokeWidth="2" className={className}>
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+    </svg>
+  ),
+  ChevronDown: ({size=16}) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <polyline points="6 9 12 15 18 9"/>
+    </svg>
+  ),
+  ChevronUp: ({size=16}) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <polyline points="18 15 12 9 6 15"/>
+    </svg>
+  ),
+  ExternalLink: ({size=14}) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+    </svg>
+  ),
+  Copy: ({size=14}) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+    </svg>
+  ),
+  Activity: ({size=20}) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+    </svg>
+  ),
+  RefreshCw: ({size=14, spinning=false}) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={spinning?{animation:'spin 1s linear infinite'}:{}}>
+      <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+    </svg>
+  ),
+  Search: ({size=16}) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+  ),
+  TrendingUp: ({size=16}) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
+    </svg>
+  ),
+  BarChart2: ({size=16}) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+    </svg>
+  ),
+  Wallet: ({size=16}) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>
+    </svg>
+  ),
+  Info: ({size=14}) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+  ),
+};
+
+// ─── HEADER ───────────────────────────────────────────────────────────────────
+function Header({ lastUpdated, loading, onRefresh, autoRefresh, setAutoRefresh }) {
+  const timeStr = lastUpdated ? new Date(lastUpdated).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '—';
+  return (
+    <header style={{background:'rgba(10,10,15,0.95)',borderBottom:'1px solid #1e1e2e',backdropFilter:'blur(12px)',position:'sticky',top:0,zIndex:50}}>
+      <div style={{maxWidth:1400,margin:'0 auto',padding:'0 16px',height:64,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{width:36,height:36,borderRadius:10,background:'linear-gradient(135deg,#7c3aed,#4f46e5)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+            <icons.Activity size={18} />
+          </div>
+          <div>
+            <div style={{fontWeight:700,fontSize:16,letterSpacing:'-0.02em'}}>Trader Intel</div>
+            <div style={{fontSize:11,color:'#64748b'}}>Top Crypto & Prediction Market Traders</div>
+          </div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <div style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#64748b'}}>
+            <div className="pulse-dot" style={{width:6,height:6,borderRadius:'50%',background:'#4ade80'}}></div>
+            Updated {timeStr}
+          </div>
+          <button
+            onClick={() => setAutoRefresh(a => !a)}
+            style={{fontSize:11,padding:'4px 10px',borderRadius:6,border:`1px solid ${autoRefresh?'#7c3aed':'#1e1e2e'}`,background:autoRefresh?'rgba(124,58,237,0.1)':'transparent',color:autoRefresh?'#a78bfa':'#64748b',cursor:'pointer'}}
+          >
+            Auto {autoRefresh ? 'ON' : 'OFF'}
+          </button>
+          <button
+            onClick={onRefresh}
+            style={{display:'flex',alignItems:'center',gap:6,padding:'6px 14px',borderRadius:8,border:'1px solid #1e1e2e',background:'rgba(255,255,255,0.03)',color:'#94a3b8',cursor:'pointer',fontSize:13}}
+          >
+            <icons.RefreshCw size={14} spinning={loading} /> Refresh
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+// ─── TAB BAR ──────────────────────────────────────────────────────────────────
+function TabBar({ activeTab, setActiveTab, watchlistCount }) {
+  const tabs = [
+    { id:'crypto', label:'Crypto', icon:<icons.TrendingUp size={15}/>, sub:'Hyperliquid' },
+    { id:'kalshi', label:'Kalshi', icon:<icons.BarChart2 size={15}/>, sub:'Prediction Markets' },
+    { id:'watchlist', label:'Watchlist', icon:<icons.Star filled={watchlistCount>0} size={15}/>, sub:`${watchlistCount} starred` },
+  ];
+  return (
+    <div style={{borderBottom:'1px solid #1e1e2e',background:'#0a0a0f'}}>
+      <div style={{maxWidth:1400,margin:'0 auto',padding:'0 16px',display:'flex',gap:0}}>
+        {tabs.map(t => (
+          <button key={t.id}
+            onClick={() => setActiveTab(t.id)}
+            style={{display:'flex',alignItems:'center',gap:8,padding:'14px 20px',cursor:'pointer',background:'transparent',border:'none',borderBottom:activeTab===t.id?'2px solid #7c3aed':'2px solid transparent',color:activeTab===t.id?'#a78bfa':'#64748b',fontSize:14,fontWeight:500,transition:'all 0.15s'}}
+          >
+            {t.icon} {t.label}
+            <span style={{fontSize:10,color:'#475569',marginLeft:2}}>{t.sub}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── FILTER BAR ───────────────────────────────────────────────────────────────
+function FilterBar({ filters, setFilters, activeTab }) {
+  return (
+    <div style={{background:'#12121a',borderBottom:'1px solid #1e1e2e',padding:'10px 16px'}}>
+      <div style={{maxWidth:1400,margin:'0 auto',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+        {/* Search */}
+        <div style={{position:'relative',flex:'1',minWidth:200}}>
+          <span style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:'#475569'}}>
+            <icons.Search size={14}/>
+          </span>
+          <input
+            value={filters.search}
+            onChange={e => setFilters({...filters, search:e.target.value})}
+            placeholder={activeTab==='crypto' ? 'Search wallet or name…' : 'Search trader…'}
+            style={{width:'100%',background:'#1a1a2e',border:'1px solid #1e1e2e',borderRadius:8,padding:'7px 10px 7px 32px',color:'#e2e8f0',fontSize:13,outline:'none'}}
+          />
+        </div>
+
+        {/* Timeframe — crypto only */}
+        {activeTab !== 'kalshi' && (
+          <div style={{display:'flex',gap:4,background:'#1a1a2e',borderRadius:8,padding:3,border:'1px solid #1e1e2e'}}>
+            {TIMEFRAMES.map(tf => (
+              <button key={tf}
+                onClick={() => setFilters({...filters, timeframe:tf})}
+                style={{padding:'4px 12px',borderRadius:6,border:'none',background:filters.timeframe===tf?'#7c3aed':'transparent',color:filters.timeframe===tf?'#fff':'#64748b',fontSize:12,cursor:'pointer',fontWeight:500,transition:'all 0.15s'}}
+              >{TF_LABELS[tf]}</button>
+            ))}
+          </div>
+        )}
+
+        {/* Sort */}
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          <span style={{fontSize:12,color:'#475569'}}>Sort:</span>
+          <select
+            value={filters.sortBy}
+            onChange={e => setFilters({...filters, sortBy:e.target.value})}
+            style={{background:'#1a1a2e',border:'1px solid #1e1e2e',borderRadius:8,padding:'6px 10px',color:'#e2e8f0',fontSize:12,cursor:'pointer',outline:'none'}}
+          >
+            {activeTab === 'kalshi' ? (
+              <>
+                <option value="allTimePnl">All-Time PnL</option>
+                <option value="winRate">Win Rate</option>
+                <option value="volume">Volume</option>
+              </>
+            ) : (
+              <>
+                <option value="pnl">PnL</option>
+                <option value="roi">ROI %</option>
+                <option value="accountValue">Account Size</option>
+                <option value="volume">Volume</option>
+              </>
+            )}
+          </select>
+          <button
+            onClick={() => setFilters({...filters, sortDir: filters.sortDir==='desc'?'asc':'desc'})}
+            style={{padding:'6px 10px',border:'1px solid #1e1e2e',borderRadius:8,background:'#1a1a2e',color:'#94a3b8',cursor:'pointer',fontSize:12}}
+          >
+            {filters.sortDir === 'desc' ? '↓ Desc' : '↑ Asc'}
+          </button>
+        </div>
+
+        {/* Min PnL filter */}
+        {activeTab !== 'kalshi' && (
+          <div style={{display:'flex',alignItems:'center',gap:6}}>
+            <span style={{fontSize:12,color:'#475569'}}>Min PnL:</span>
+            <select
+              value={filters.minPnl}
+              onChange={e => setFilters({...filters, minPnl:Number(e.target.value)})}
+              style={{background:'#1a1a2e',border:'1px solid #1e1e2e',borderRadius:8,padding:'6px 10px',color:'#e2e8f0',fontSize:12,cursor:'pointer',outline:'none'}}
+            >
+              <option value={0}>Any</option>
+              <option value={10000}>$10K+</option>
+              <option value={100000}>$100K+</option>
+              <option value={1000000}>$1M+</option>
+            </select>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── COPY TRADE BUTTON ────────────────────────────────────────────────────────
+function CopyBtn({ href, label='Copy Trade' }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer"
+      onClick={e => e.stopPropagation()}
+      style={{display:'inline-flex',alignItems:'center',gap:5,padding:'4px 10px',borderRadius:6,border:'1px solid rgba(124,58,237,0.4)',background:'rgba(124,58,237,0.1)',color:'#a78bfa',fontSize:11,fontWeight:600,textDecoration:'none',whiteSpace:'nowrap',transition:'all 0.15s'}}
+      onMouseOver={e=>e.currentTarget.style.background='rgba(124,58,237,0.25)'}
+      onMouseOut={e=>e.currentTarget.style.background='rgba(124,58,237,0.1)'}
+    >
+      <icons.Copy size={12}/> {label}
+    </a>
+  );
+}
+
+// ─── CRYPTO ROW ───────────────────────────────────────────────────────────────
+function CryptoRow({ trader, onToggleStar }) {
+  const [expanded, setExpanded] = useState(false);
+  const [positions, setPositions] = useState(trader.openPositions || []);
+  const [loadingPos, setLoadingPos] = useState(false);
+
+  async function handleExpand() {
+    if (!expanded && positions.length === 0) {
+      setLoadingPos(true);
+      try {
+        const pos = await fetchPositions(trader.address);
+        setPositions(pos);
+      } catch(e) { setPositions([]); }
+      setLoadingPos(false);
+    }
+    setExpanded(e => !e);
+  }
+
+  return (
+    <>
+      <tr className="row-hover" style={{borderBottom:'1px solid #1a1a2e',cursor:'pointer'}} onClick={handleExpand}>
+        <td style={{padding:'12px 16px',color:'#475569',fontSize:13,width:50}}>{trader.rank}</td>
+        <td style={{padding:'12px 16px'}}>
+          <button onClick={e=>{e.stopPropagation();onToggleStar(trader.address);}}
+            style={{background:'none',border:'none',cursor:'pointer',padding:'2px',marginRight:8,opacity:trader.starred?1:0.4}}>
+            <icons.Star filled={trader.starred} size={14}/>
+          </button>
+          <span style={{fontFamily:'JetBrains Mono, monospace',fontSize:12,color:'#94a3b8'}}>{trader.displayName || shortAddr(trader.address)}</span>
+        </td>
+        <td style={{padding:'12px 16px',textAlign:'right'}}>
+          <span className={`mono ${pnlColor(trader.pnl)}`} style={{fontSize:13,fontWeight:600}}>{fmtUsd(trader.pnl)}</span>
+        </td>
+        <td style={{padding:'12px 16px',textAlign:'right'}}>
+          <span className={pnlColor(trader.roi)} style={{fontSize:13}}>{fmtPct(trader.roi)}</span>
+        </td>
+        <td style={{padding:'12px 16px',textAlign:'right'}}>
+          <span style={{color:'#94a3b8',fontSize:13}}>{fmtUsd(trader.accountValue)}</span>
+        </td>
+        <td style={{padding:'12px 16px',textAlign:'right'}}>
+          <span style={{color:'#64748b',fontSize:13}}>{fmtUsd(trader.volume, 0)}</span>
+        </td>
+        <td style={{padding:'12px 16px',textAlign:'center'}}>
+          <a href={`https://app.hyperliquid.xyz/leaderboard`} target="_blank" rel="noopener noreferrer"
+            onClick={e=>e.stopPropagation()}
+            style={{color:'#475569',display:'inline-flex'}}>
+            <icons.ExternalLink size={13}/>
+          </a>
+        </td>
+        <td style={{padding:'12px 16px',textAlign:'center',color:'#475569'}}>
+          {loadingPos ? <span style={{fontSize:11}}>…</span> : expanded ? <icons.ChevronUp size={14}/> : <icons.ChevronDown size={14}/>}
+        </td>
+      </tr>
+      {expanded && (
+        <tr>
+          <td colSpan={8} style={{background:'#0d0d18',padding:0}}>
+            <div className="fade-in" style={{padding:'12px 24px 16px 56px'}}>
+              {positions.length === 0 ? (
+                <div style={{color:'#475569',fontSize:13,padding:'8px 0'}}>No open positions</div>
+              ) : (
+                <table style={{width:'100%',borderCollapse:'collapse'}}>
+                  <thead>
+                    <tr style={{color:'#475569',fontSize:11}}>
+                      <th style={{textAlign:'left',padding:'4px 8px',fontWeight:500}}>Coin</th>
+                      <th style={{textAlign:'left',padding:'4px 8px',fontWeight:500}}>Side</th>
+                      <th style={{textAlign:'right',padding:'4px 8px',fontWeight:500}}>Size</th>
+                      <th style={{textAlign:'right',padding:'4px 8px',fontWeight:500}}>Entry</th>
+                      <th style={{textAlign:'right',padding:'4px 8px',fontWeight:500}}>Unr. PnL</th>
+                      <th style={{textAlign:'right',padding:'4px 8px',fontWeight:500}}>Lev</th>
+                      <th style={{textAlign:'right',padding:'4px 8px',fontWeight:500}}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {positions.map((pos, i) => (
+                      <tr key={i} className="pos-row">
+                        <td style={{padding:'6px 8px',fontWeight:600,fontSize:13}}>{pos.coin}</td>
+                        <td style={{padding:'6px 8px'}}>
+                          <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4,
+                            background:pos.side==='LONG'?'rgba(74,222,128,0.15)':'rgba(248,113,113,0.15)',
+                            color:pos.side==='LONG'?'#4ade80':'#f87171'}}>
+                            {pos.side}
+                          </span>
+                        </td>
+                        <td style={{padding:'6px 8px',textAlign:'right',fontFamily:'monospace',fontSize:12,color:'#94a3b8'}}>{pos.size.toFixed(3)}</td>
+                        <td style={{padding:'6px 8px',textAlign:'right',fontFamily:'monospace',fontSize:12,color:'#94a3b8'}}>${pos.entryPrice.toLocaleString(undefined,{maximumFractionDigits:2})}</td>
+                        <td style={{padding:'6px 8px',textAlign:'right'}}>
+                          <span className={`mono ${pnlColor(pos.unrealizedPnl)}`} style={{fontSize:12,fontWeight:600}}>{fmtUsd(pos.unrealizedPnl)}</span>
+                        </td>
+                        <td style={{padding:'6px 8px',textAlign:'right',fontSize:12,color:'#64748b'}}>{pos.leverage.toFixed(1)}x</td>
+                        <td style={{padding:'6px 8px',textAlign:'right'}}>
+                          <CopyBtn href={`https://app.hyperliquid.xyz/trade/${pos.coin}`}/>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+// ─── CRYPTO TAB ───────────────────────────────────────────────────────────────
+function CryptoTab({ traders, onToggleStar }) {
+  if (traders.length === 0) return (
+    <div style={{textAlign:'center',padding:'80px 20px',color:'#475569'}}>
+      <icons.TrendingUp size={40}/>
+      <p style={{marginTop:16}}>No traders found. Try adjusting your filters.</p>
+    </div>
+  );
+  return (
+    <div style={{overflowX:'auto'}}>
+      <table style={{width:'100%',borderCollapse:'collapse',minWidth:700}}>
+        <thead>
+          <tr style={{background:'#0d0d18',borderBottom:'1px solid #1e1e2e'}}>
+            {['#','Trader','PnL','ROI %','Acct Value','Volume','',''].map((h,i)=>(
+              <th key={i} style={{padding:'10px 16px',textAlign:i>1?'right':'left',fontSize:11,fontWeight:500,color:'#475569',textTransform:'uppercase',letterSpacing:'0.05em',whiteSpace:'nowrap',
+                ...(i===6||i===7?{textAlign:'center'}:{})}}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {traders.map(t => <CryptoRow key={t.address} trader={t} onToggleStar={onToggleStar}/>)}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── KALSHI ROW ───────────────────────────────────────────────────────────────
+function KalshiRow({ trader, onToggleStar }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <>
+      <tr className="row-hover" style={{borderBottom:'1px solid #1a1a2e',cursor:'pointer'}} onClick={()=>setExpanded(e=>!e)}>
+        <td style={{padding:'12px 16px',color:'#475569',fontSize:13}}>{trader.rank}</td>
+        <td style={{padding:'12px 16px'}}>
+          <button onClick={e=>{e.stopPropagation();onToggleStar('k:'+trader.id);}}
+            style={{background:'none',border:'none',cursor:'pointer',padding:'2px',marginRight:8,opacity:trader.starred?1:0.4}}>
+            <icons.Star filled={trader.starred} size={14}/>
+          </button>
+          <span style={{fontWeight:500,fontSize:13}}>{trader.name}</span>
+        </td>
+        <td style={{padding:'12px 16px',textAlign:'right'}}>
+          <span className={`mono ${pnlColor(trader.allTimePnl)}`} style={{fontWeight:600,fontSize:13}}>{fmtUsd(trader.allTimePnl)}</span>
+        </td>
+        <td style={{padding:'12px 16px',textAlign:'right'}}>
+          <span style={{color:'#94a3b8',fontSize:13}}>{trader.winRate.toFixed(1)}%</span>
+        </td>
+        <td style={{padding:'12px 16px',textAlign:'right'}}>
+          <span style={{color:'#64748b',fontSize:13}}>{trader.totalTrades.toLocaleString()}</span>
+        </td>
+        <td style={{padding:'12px 16px',textAlign:'right'}}>
+          <span style={{color:'#64748b',fontSize:13}}>{fmtUsd(trader.volume, 0)}</span>
+        </td>
+        <td style={{padding:'12px 16px',textAlign:'center',color:'#475569'}}>
+          {expanded ? <icons.ChevronUp size={14}/> : <icons.ChevronDown size={14}/>}
+        </td>
+      </tr>
+      {expanded && (
+        <tr>
+          <td colSpan={7} style={{background:'#0d0d18',padding:0}}>
+            <div className="fade-in" style={{padding:'12px 24px 16px 56px'}}>
+              {trader.positions.length === 0 ? (
+                <div style={{color:'#475569',fontSize:13}}>No open positions</div>
+              ) : (
+                <table style={{width:'100%',borderCollapse:'collapse'}}>
+                  <thead>
+                    <tr style={{color:'#475569',fontSize:11}}>
+                      <th style={{textAlign:'left',padding:'4px 8px',fontWeight:500}}>Market</th>
+                      <th style={{textAlign:'left',padding:'4px 8px',fontWeight:500}}>Side</th>
+                      <th style={{textAlign:'right',padding:'4px 8px',fontWeight:500}}>Contracts</th>
+                      <th style={{textAlign:'right',padding:'4px 8px',fontWeight:500}}>Avg Price</th>
+                      <th style={{textAlign:'right',padding:'4px 8px',fontWeight:500}}>Current</th>
+                      <th style={{textAlign:'right',padding:'4px 8px',fontWeight:500}}>PnL</th>
+                      <th style={{textAlign:'right',padding:'4px 8px',fontWeight:500}}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trader.positions.map((pos, i) => (
+                      <tr key={i} className="pos-row">
+                        <td style={{padding:'6px 8px',fontSize:12,color:'#94a3b8',maxWidth:300}}>{pos.market}</td>
+                        <td style={{padding:'6px 8px'}}>
+                          <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4,
+                            background:pos.side==='YES'?'rgba(74,222,128,0.15)':'rgba(248,113,113,0.15)',
+                            color:pos.side==='YES'?'#4ade80':'#f87171'}}>
+                            {pos.side}
+                          </span>
+                        </td>
+                        <td style={{padding:'6px 8px',textAlign:'right',fontFamily:'monospace',fontSize:12,color:'#94a3b8'}}>{pos.contracts.toLocaleString()}</td>
+                        <td style={{padding:'6px 8px',textAlign:'right',fontFamily:'monospace',fontSize:12,color:'#94a3b8'}}>{(pos.avgPrice*100).toFixed(0)}¢</td>
+                        <td style={{padding:'6px 8px',textAlign:'right',fontFamily:'monospace',fontSize:12,color:'#e2e8f0'}}>{(pos.currentPrice*100).toFixed(0)}¢</td>
+                        <td style={{padding:'6px 8px',textAlign:'right'}}>
+                          <span className={`mono ${pnlColor(pos.pnl)}`} style={{fontSize:12,fontWeight:600}}>{fmtUsd(pos.pnl)}</span>
+                        </td>
+                        <td style={{padding:'6px 8px',textAlign:'right'}}>
+                          <CopyBtn href={`https://kalshi.com/markets/${pos.ticker}`} label="View Market"/>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+// ─── KALSHI TAB ───────────────────────────────────────────────────────────────
+function KalshiTab({ traders, onToggleStar }) {
+  return (
+    <div>
+      <div style={{background:'rgba(251,191,36,0.05)',border:'1px solid rgba(251,191,36,0.2)',borderRadius:8,margin:'12px 16px',padding:'10px 14px',display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#fbbf24'}}>
+        <icons.Info size={14}/>
+        Kalshi's API blocks browser requests (CORS). Data shown is realistic mock data. To get live data, run a server proxy. <a href="https://kalshi.com" target="_blank" style={{color:'#fbbf24',marginLeft:4}}>Browse Kalshi ↗</a>
+      </div>
+      <div style={{overflowX:'auto'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',minWidth:600}}>
+          <thead>
+            <tr style={{background:'#0d0d18',borderBottom:'1px solid #1e1e2e'}}>
+              {['#','Trader','All-Time PnL','Win Rate','Trades','Volume',''].map((h,i)=>(
+                <th key={i} style={{padding:'10px 16px',textAlign:i>1?'right':'left',fontSize:11,fontWeight:500,color:'#475569',textTransform:'uppercase',letterSpacing:'0.05em',
+                  ...(i===6?{textAlign:'center'}:{})}}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {traders.map(t => <KalshiRow key={t.id} trader={t} onToggleStar={onToggleStar}/>)}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── WATCHLIST TAB ────────────────────────────────────────────────────────────
+function WatchlistTab({ cryptoTraders, kalshiTraders, onToggleStar }) {
+  if (cryptoTraders.length === 0 && kalshiTraders.length === 0) {
+    return (
+      <div style={{textAlign:'center',padding:'80px 20px',color:'#475569'}}>
+        <icons.Star filled={false} size={40}/>
+        <p style={{marginTop:16,fontSize:15}}>No starred traders yet</p>
+        <p style={{fontSize:13,marginTop:4}}>Click the ★ next to any trader to add them to your watchlist</p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      {cryptoTraders.length > 0 && (
+        <div>
+          <div style={{padding:'12px 16px 4px',fontSize:11,fontWeight:600,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em'}}>
+            Crypto — Hyperliquid ({cryptoTraders.length})
+          </div>
+          <CryptoTab traders={cryptoTraders} onToggleStar={onToggleStar}/>
+        </div>
+      )}
+      {kalshiTraders.length > 0 && (
+        <div style={{marginTop:24}}>
+          <div style={{padding:'12px 16px 4px',fontSize:11,fontWeight:600,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em'}}>
+            Kalshi Prediction Markets ({kalshiTraders.length})
+          </div>
+          <KalshiTab traders={kalshiTraders} onToggleStar={onToggleStar}/>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+function App() {
+  const [activeTab, setActiveTab] = useState('crypto');
+  const [cryptoTraders, setCryptoTraders] = useState([]);
+  const [kalshiTraders, setKalshiTraders] = useState(KALSHI_TRADERS);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [starred, setStarred] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('trader-intel-starred') || '[]'); } catch { return []; }
+  });
+  const [filters, setFilters] = useState({
+    search: '',
+    timeframe: '7d',
+    sortBy: 'pnl',
+    sortDir: 'desc',
+    minPnl: 0,
+  });
+
+  // Save starred to localStorage
+  useEffect(() => {
+    localStorage.setItem('trader-intel-starred', JSON.stringify(starred));
+  }, [starred]);
+
+  function toggleStar(id) {
+    setStarred(prev => prev.includes(id) ? prev.filter(s=>s!==id) : [...prev, id]);
+  }
+
+  // Fetch crypto leaderboard
+  const fetchCrypto = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const traders = await fetchLeaderboard(filters.timeframe);
+      setCryptoTraders(traders);
+      setLastUpdated(new Date().toISOString());
+    } catch(e) {
+      setError('Failed to load Hyperliquid data. ' + e.message);
+    }
+    setLoading(false);
+  }, [filters.timeframe]);
+
+  useEffect(() => { fetchCrypto(); }, [fetchCrypto]);
+
+  // Auto-refresh every 60s
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(fetchCrypto, 60000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, fetchCrypto]);
+
+  // Apply filters & sort to crypto traders
+  const filteredCrypto = cryptoTraders
+    .map(t => ({...t, starred: starred.includes(t.address)}))
+    .filter(t => {
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        if (!t.address.toLowerCase().includes(q) && !(t.displayName||'').toLowerCase().includes(q)) return false;
+      }
+      if (filters.minPnl && t.pnl < filters.minPnl) return false;
+      return true;
+    })
+    .sort((a,b) => {
+      const dir = filters.sortDir === 'desc' ? -1 : 1;
+      const field = filters.sortBy;
+      return (a[field] - b[field]) * dir;
+    });
+
+  // Apply filters & sort to kalshi traders
+  const filteredKalshi = KALSHI_TRADERS
+    .map(t => ({...t, starred: starred.includes('k:'+t.id)}))
+    .filter(t => {
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        if (!t.name.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    })
+    .sort((a,b) => {
+      const dir = filters.sortDir === 'desc' ? -1 : 1;
+      const field = filters.sortBy === 'pnl' ? 'allTimePnl' : filters.sortBy === 'roi' ? 'winRate' : filters.sortBy;
+      return (a[field] - b[field]) * dir;
+    });
+
+  const watchlistCrypto = filteredCrypto.filter(t => t.starred);
+  const watchlistKalshi = filteredKalshi.filter(t => t.starred);
+  const watchlistCount = watchlistCrypto.length + watchlistKalshi.length;
+
+  return (
+    <div style={{minHeight:'100vh',background:'#0a0a0f'}}>
+      <Header
+        lastUpdated={lastUpdated}
+        loading={loading}
+        onRefresh={fetchCrypto}
+        autoRefresh={autoRefresh}
+        setAutoRefresh={setAutoRefresh}
+      />
+      <TabBar activeTab={activeTab} setActiveTab={setActiveTab} watchlistCount={watchlistCount}/>
+      {activeTab !== 'watchlist' && (
+        <FilterBar filters={filters} setFilters={setFilters} activeTab={activeTab}/>
+      )}
+
+      <main style={{maxWidth:1400,margin:'0 auto'}}>
+        {error && (
+          <div style={{margin:'16px',padding:'12px 16px',background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:8,color:'#f87171',fontSize:13}}>
+            {error}
+          </div>
+        )}
+
+        {loading && cryptoTraders.length === 0 ? (
+          <div style={{textAlign:'center',padding:'80px 20px',color:'#475569'}}>
+            <div style={{fontSize:24,marginBottom:16}}>⟳</div>
+            <p>Loading leaderboard data…</p>
+          </div>
+        ) : (
+          <>
+            {activeTab === 'crypto' && <CryptoTab traders={filteredCrypto} onToggleStar={toggleStar}/>}
+            {activeTab === 'kalshi' && <KalshiTab traders={filteredKalshi} onToggleStar={toggleStar}/>}
+            {activeTab === 'watchlist' && (
+              <WatchlistTab
+                cryptoTraders={watchlistCrypto}
+                kalshiTraders={watchlistKalshi}
+                onToggleStar={toggleStar}
+              />
+            )}
+          </>
+        )}
+      </main>
+
+      <footer style={{borderTop:'1px solid #1e1e2e',padding:'16px',marginTop:40,textAlign:'center',fontSize:12,color:'#334155'}}>
+        Crypto data: Hyperliquid public API (live) &nbsp;·&nbsp; Prediction data: mock (Kalshi CORS blocks browser) &nbsp;·&nbsp; Not financial advice
+      </footer>
+
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
